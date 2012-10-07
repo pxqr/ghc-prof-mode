@@ -1,4 +1,4 @@
-;;; ============================ mode related  =======================================
+;;; ============================ mode related  ===============================
 (defvar ghc-prof-mode-hook nil)
 
 (defvar ghc-prof-mode-map 
@@ -15,19 +15,34 @@
   "Minimal highlighting for ghc-prof mode")
 
 (defun ghc-prof-mode ()
-  "Major mode for viewing ghc profiling reports"
+  "Major mode for viewing ghc profiling reports."
   (interactive)
   (kill-all-local-variables)
   ;; (set-syntax-table 
   (use-local-map ghc-prof-mode-map)
-  (set (make-local-variable 'font-lock-defaults) 
-       '(ghc-prof-font-lock-keywords))
+  (set (make-local-variable 'font-lock-defaults) '(ghc-prof-font-lock-keywords))
   (setq major-mode 'ghc-prof-mode)
   (setq mode-name "profiling report")
   (toggle-read-only)                    ; make opened buffer read only
   (ghc-prof-select-report)
+;;  (run-with-timer 0 2 '(ghc-prof-modification-handler))
   (run-hooks 'ghc-prof-mode-hook))
 
+;;; ======================== polling  ========================================
+;;;(defvar ghc-prof-managed-prof-buffers nil)
+
+;; (defun ghc-prof-modification-handler ()
+;;   (let ((buffer (current-buffer)))
+;;     #'(ghc-prof-check-external-modifications buffer)))
+
+;;(defun ghc-prof-check-external-modifications (buffer) 
+;;  (when (not (verify-visited-file-modtime buffer))
+;;    (global-set-key (kbd "<F5>") 'revert-buffer)
+;;    (setq header-line-format 
+;;          (concat 
+;;           (propertize "It seem like you get a new report, anyway this report file has been changed externally. " 
+;;                       'face '(:foreground "#f00"))
+;;           "Press F5 to show the new report."))))
 ;; ========================= utils    ========================================
 (defun swap-snd-fst-rest (x)
   (cons (cadr x) (cons (car x) (cddr x))))
@@ -91,11 +106,11 @@
 
 (defun ghc-prof-select-report ()
   "Select report opened in current buffer.
-  When ghc-prof attempt to find hotspots it will use the last selected report."
+   When ghc-prof attempt to find hotspots it will use the last selected report."
   (interactive)
   (setq ghc-prof-current-stats (ghc-prof-form-stats
 				 (ghc-prof-report-extract-stats 
-				  (buffer-substring-no-properties (point-min) (point-max))))))  
+				  (buffer-substring-no-properties (point-min) (point-max))))))
 
 (defun ghc-prof-form-stats (parsed-report)
   (mapcar                                             ; make lookup from function to info
@@ -107,7 +122,7 @@
   "Extract detailed stats from report. Return a table as it have been presented in report."
   (mapcar '(lambda (x) (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" x) " +")) 
 	  (cdr (cdr (drop-while 
-		     '(lambda (x) (not (string-match "^COST CENTRE MODULE +no." x)))
+		     '(lambda (x) (not (string-match "^COST +CENTRE  +MODULE +no" x)))
 		     (split-string report "\n"))))))
 
 ;;; ========================== some  math          ============================
