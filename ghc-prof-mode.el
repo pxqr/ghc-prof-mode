@@ -86,7 +86,8 @@
 	  source))))
                
 ;;; ======================== report ==============================================
-;; :: Map ModuleName (Map CentreName Info)
+;; stats :: Map ModuleName (Map CentreName Info)
+;; Holds current selected report parsed and formed yet.
 (defvar ghc-prof-current-stats nil)
 
 (defun ghc-prof-select-report ()
@@ -110,13 +111,14 @@
 		     '(lambda (x) (not (string-match "^COST CENTRE MODULE +no." x)))
 		     (split-string report "\n"))))))
 
-;; ========================== some  math          ============================
+;;; ========================== some  math          ============================
+;;; TODO: we can make it in one pass.
 (defun ghc-prof-mean (list)
   (/ (apply '+ list) (list-length list)))
 
 (defun ghc-prof-std (list) )
 
-;; ========================== interactive         ============================
+;;; ========================== interactive         ============================
 (defun ghc-prof-hotspot-current ()
   (interactive)
   (let* ((content (buffer-substring-no-properties (point-min) (point-max)))
