@@ -1,19 +1,13 @@
-;; ============================ mode related  =======================================
-;; This file
+;;; ============================ mode related  =======================================
 (defvar ghc-prof-mode-hook nil)
 
-;; keymap
-; in haskell-mode
-;    (define-key map "\C-j" 'goto-scc-report-info)    
-; in ghc-prof-mode
-;    (define-key map "\C-g C-t" 'goto-scc-source) 
 (defvar ghc-prof-mode-map 
   "Keymap for ghc-prof major mode"
   (let ((map (make-keymap)))
     (define-key map "\C-j" 'newline-and-indent)
     map))
 
-;; set ghc-prof-mode when .prof file is opened
+;;; set ghc-prof-mode when .prof file is opened
 (add-to-list 'auto-mode-alist '("\\.prof\\'" . ghc-prof-mode))
 
 (defconst ghc-prof-font-lock-keywords
@@ -25,21 +19,32 @@
   "Major mode for viewing ghc profiling reports"
   (interactive)
   (kill-all-local-variables)
-;  (set-syntax-table 
+  ;; (set-syntax-table 
   (use-local-map ghc-prof-mode-map)
   (set (make-local-variable 'font-lock-defaults) 
        '(ghc-prof-font-lock-keywords))
   (setq major-mode 'ghc-prof-mode)
   (setq mode-name "ghc prof report")
-  (toggle-read-only) ;; make opened buffer read only
+  (toggle-read-only)                    ; make opened buffer read only
   (ghc-prof-select-report)
   (run-hooks 'ghc-prof-mode-hook))
 
 ;; ========================= utils    ========================================
+(defun swap-snd-fst-rest (x)
+  (cons (cadr x) (cons (car x) (cddr x))))
+
 (defun search-line-by-line (pred str)
   "Apply function to each line and filter all returned nils."
   (remove-if 'nil (mapcar pred (split-string str "\n" t))))
 
+(defun make-alist (list)  
+  "Make associative list from list of pairs. 
+   Dublicates of keys are discarded and corresponding values are merged in list"
+  (mapcar (lambda (x) (cons (caar x) (mapcar 'cdr x))) 
+	  (group-by (lambda (p q) (string= (car p) (car q)))
+		    (sort list (lambda (p q) (string< (car p) (car q)))))))
+
+;;; haskell-like functions
 (defun drop-while (f list)
   (let ((res list))
     (while (funcall f (car res)) (pop res))
@@ -57,19 +62,9 @@
 	       (cons (cons x nil) xs)))
 	 '()
 	 list))
-
-(defun make-alist (list)  
-  (mapcar (lambda (x) (cons (caar x) (mapcar 'cdr x))) 
-	  (group-by (lambda (p q) (string= (car p) (car q)))
-		    (sort list (lambda (p q) (string< (car p) (car q)))))))
-
-
-(defun swap-snd-fst-rest (x)
-  (cons (cadr x) (cons (car x) (cddr x))))
-
-;; ========================= buffers  ========================================
+;;; ========================= buffers  ========================================
 (defun ghc-prof-buffer-list ()
-  "List all haskellish buffers."
+  "List of all haskellish buffers."
   (interactive)
   (remove-if 
    (lambda (buffer)
@@ -77,8 +72,8 @@
        (or (eq nil file-name) (not (string-match ".+\\.l?hs" file-name)))))
    (buffer-list)))
 
-;; FIX: if "module Module.Name" precedes real module statement 
-;; then module will be recognized incorrectly.
+;;; FIX: if "module Module.Name" precedes real module statement 
+;;; then module will be recognized incorrectly.
 (defun ghc-prof-extract-module-name (source)
   "Extract from haskell source its module name"
   (let* ((id-re  "[[:upper:]]\\(\\w\\|'\\)*")
@@ -90,8 +85,8 @@
 	      (replace-regexp-in-string mod-re "\\1" line)))
 	  source))))
                
-;; ======================== report ==============================================
-; :: Map ModuleName (Map CentreName Info)
+;;; ======================== report ==============================================
+;; :: Map ModuleName (Map CentreName Info)
 (defvar ghc-prof-current-stats nil)
 
 (defun ghc-prof-select-report ()
@@ -103,9 +98,9 @@
 				  (buffer-substring-no-properties (point-min) (point-max))))))  
 
 (defun ghc-prof-form-stats (parsed-report)
-  (mapcar      ; make lookup from function to info
+  (mapcar                                             ; make lookup from function to info
    (lambda (x) (cons (car x) (make-alist (cdr x)))) 
-   (make-alist ; make lookup from module name to function->info
+   (make-alist                                        ; make lookup from module name to function->info
     (mapcar 'swap-snd-fst-rest parsed-report))))
 
 (defun ghc-prof-report-extract-stats (report)
@@ -119,8 +114,7 @@
 (defun ghc-prof-mean (list)
   (/ (apply '+ list) (list-length list)))
 
-(defun ghc-prof-std (list)
-  )
+(defun ghc-prof-std (list) )
 
 ;; ========================== interactive         ============================
 (defun ghc-prof-hotspot-current ()
@@ -160,15 +154,12 @@
 		   (ghc-prof-function-info file-name module-name cost-centre))))
     (ghc-prof-create-indicator position 'vertical-bar)))
 
-;(if (not (ghc-which ghc-module-command))
-;    (message "%s not found" ghc-module-command)
+;;; TODO: Check if ghc-mod is available but not in inner loop obviously.
+;;; (if (not (ghc-which ghc-module-command))
+;;;    (message "%s not found" ghc-module-command)
 
 ;; ==========================  Fringes =======================================
-;; pieces of code taken from rfringes minor mode
-;  (ghc-prof-create-indicator 6000 'vertical-bar)
-;  (ghc-prof-remove-indicators)
-; (ghc-prof-unmark)
-
+;;; TODO: Add color and side parameters to ghc-prof-create-indicator.
 (defvar ghc-prof-indicators nil)
 (define-fringe-bitmap 'ghc-prof-fringe-bitmap [255 0])
 
@@ -189,17 +180,18 @@
     ov))
 
 (defun ghc-prof-line-position (line-number)
+  "Get start position for nth line. Index starts from one, so first line have index one."
   (save-excursion
     (goto-char (point-min))
     (forward-line (- line-number 1))
     (point)))
 
 (defun ghc-prof-remove-indicators ()
+  "Remove all managed indicators in all buffers."
   (if ghc-prof-indicators
       (progn
         (mapc (lambda (pair) (delete-overlay (cdr pair)))
               ghc-prof-indicators)
         (setq ghc-prof-indicators nil))))
-
 
 (provide 'ghc-prof-mode)
