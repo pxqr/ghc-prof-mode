@@ -2,7 +2,6 @@
 (defvar ghc-prof-mode-hook nil)
 
 (defvar ghc-prof-mode-map 
-  "Keymap for ghc-prof major mode"
   (let ((map (make-keymap)))
     (define-key map "\C-j" 'newline-and-indent)
     map))
@@ -24,7 +23,7 @@
   (set (make-local-variable 'font-lock-defaults) 
        '(ghc-prof-font-lock-keywords))
   (setq major-mode 'ghc-prof-mode)
-  (setq mode-name "ghc prof report")
+  (setq mode-name "profiling report")
   (toggle-read-only)                    ; make opened buffer read only
   (ghc-prof-select-report)
   (run-hooks 'ghc-prof-mode-hook))
