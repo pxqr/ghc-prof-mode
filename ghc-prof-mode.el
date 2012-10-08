@@ -27,7 +27,7 @@
   (toggle-read-only)                
   ;; it's might be useful to collate time in mode-line with report time
   (display-time)                    
-  (ghc-prof-select-report)
+  (ghc-prof-select)
   (ghc-prof-watch-buffer)
   (run-hooks 'ghc-prof-mode-hook))
 
@@ -93,14 +93,14 @@
 	       (cons (cons x nil) xs)))
 	 '()
 	 list))
+
 ;;; ========================= buffers  ========================================
 (defun ghc-prof-buffer-list ()
   "List of all haskellish buffers."
-  (interactive)
   (remove-if 
    (lambda (buffer)
      (let ((file-name (buffer-file-name buffer)))
-       (or (eq nil file-name) (not (string-match ".+\\.l?hs" file-name)))))
+       (or (eq nil file-name) (not (string-match ".+\\.l?hsc?\\'" file-name)))))
    (buffer-list)))
 
 ;;; FIX: if "module Module.Name" precedes real module statement 
@@ -121,7 +121,7 @@
 ;; Holds current selected report parsed and formed yet.
 (defvar ghc-prof-current-stats nil)
 
-(defun ghc-prof-select-report ()
+(defun ghc-prof-select ()
   "Select report opened in current buffer.
    When ghc-prof attempt to find hotspots it will use the last selected report."
   (interactive)
@@ -129,18 +129,28 @@
 				 (ghc-prof-report-extract-stats 
 				  (buffer-substring-no-properties (point-min) (point-max))))))
 
+;; TODO: verify 
+(defun ghc-prof-merge-info (alist)
+  (cons (car alist)
+        (apply 'mapcar* 
+               (lambda (&rest x) (apply '+ (mapcar 'string-to-number x))) 
+               (cdr test))))
+
 (defun ghc-prof-form-stats (parsed-report)
-  (mapcar                                             ; make lookup from function to info
-   (lambda (x) (cons (car x) (make-alist (cdr x)))) 
+  (mapcar                                             ; make lookup from function to info and merge info
+   (lambda (x) (cons (car x) (mapcar #'ghc-prof-merge-info (make-alist (cdr x)))))
    (make-alist                                        ; make lookup from module name to function->info
-    (mapcar 'swap-snd-fst-rest parsed-report))))
+    (mapcar 'swap-snd-fst-rest                                
+     (remove-if (lambda (x) (string-match "^CAF" (car x)))
+                parsed-report)))))
 
 (defun ghc-prof-report-extract-stats (report)
   "Extract detailed stats from report. Return a table as it have been presented in report."
   (mapcar '(lambda (x) (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" x) " +")) 
-	  (cdr (cdr (drop-while 
-		     '(lambda (x) (not (string-match "^COST +CENTRE  +MODULE +no" x)))
-		     (split-string report "\n"))))))
+	  (cdr (cdr (cdr  ;; skip attribute line, blank line and first meaningless line with MAIN
+                     (drop-while 
+                      '(lambda (x) (not (string-match "^COST +CENTRE +MODULE +no" x)))
+                      (split-string report "\n")))))))
 
 ;;; ========================== some  math          ============================
 ;;; TODO: we can make it in one pass.
@@ -166,7 +176,7 @@
 (defun ghc-prof-hotspots ()
   (interactive)
   (ghc-prof-clear)
-  (mapc (lambda (x) (with-current-buffer x (ghc-prof-mark-buffer)))
+  (mapc (lambda (x) (with-current-buffer x (ghc-prof-hotspot-current)))
 	(ghc-prof-buffer-list)))
 
 (defun ghc-prof-clear ()
@@ -185,7 +195,8 @@
 (defun ghc-prof-indicate-cost-centre (file-name module-name cost-centre)
   (let ((position (ghc-prof-position-from-info 
 		   (ghc-prof-function-info file-name module-name cost-centre))))
-    (ghc-prof-create-indicator position 'vertical-bar)))
+    (when position
+      (ghc-prof-create-indicator position 'vertical-bar))))
 
 ;;; TODO: Check if ghc-mod is available but not in inner loop obviously.
 ;;; (if (not (ghc-which ghc-module-command))
@@ -197,10 +208,11 @@
 (define-fringe-bitmap 'ghc-prof-fringe-bitmap [255 0])
 
 (defun ghc-prof-create-indicator (line-number bitmap)
-  (let ((overlay (ghc-prof-insert-bitmap bitmap 
-					 (ghc-prof-line-position line-number) 
-					 'left-fringe 
-					 'font-lock-warning-face)))
+  (let* ((pos (ghc-prof-line-position line-number))
+         (overlay (ghc-prof-insert-bitmap bitmap 
+					  pos
+                                          'left-fringe 
+                                          'font-lock-warning-face)))
     (push (cons pos overlay) ghc-prof-indicators)))
 
 (defun ghc-prof-insert-bitmap (bitmap pos &optional side face)
