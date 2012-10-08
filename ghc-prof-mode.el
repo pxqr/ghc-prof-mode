@@ -95,12 +95,13 @@
 	 list))
 
 ;;; ========================= buffers  ========================================
+;;; unfortunately ghc-mod info does not support hsc (haskell interfaces to C)
 (defun ghc-prof-buffer-list ()
   "List of all haskellish buffers."
   (remove-if 
    (lambda (buffer)
      (let ((file-name (buffer-file-name buffer)))
-       (or (eq nil file-name) (not (string-match ".+\\.l?hsc?\\'" file-name)))))
+       (or (eq nil file-name) (not (string-match ".+\\.l?hs\\'" file-name)))))
    (buffer-list)))
 
 ;;; FIX: if "module Module.Name" precedes real module statement 
@@ -134,7 +135,7 @@
   (cons (car alist)
         (apply 'mapcar* 
                (lambda (&rest x) (apply '+ (mapcar 'string-to-number x))) 
-               (cdr test))))
+               (cdr alist))))
 
 (defun ghc-prof-form-stats (parsed-report)
   (mapcar                                             ; make lookup from function to info and merge info
@@ -142,7 +143,10 @@
    (make-alist                                        ; make lookup from module name to function->info
     (mapcar 'swap-snd-fst-rest                                
      (remove-if (lambda (x) (string-match "^CAF" (car x)))
-                parsed-report)))))
+                (mapcar (lambda (x) 
+                          (cons (replace-regexp-in-string "^\\(.*?\\)\\(\\.\\\\\\)+\\'" "\\1" (car x))
+                                (cdr x)))
+                parsed-report))))))
 
 (defun ghc-prof-report-extract-stats (report)
   "Extract detailed stats from report. Return a table as it have been presented in report."
