@@ -3,7 +3,7 @@
 
 (defvar ghc-prof-mode-map 
   (let ((map (make-keymap)))
-    (define-key map "\C-j" 'newline-and-indent)
+    (define-key map "r" 'ghc-prof-update-buffer)
     map))
 
 ;;; set ghc-prof-mode when .prof file is opened
@@ -23,26 +23,43 @@
   (set (make-local-variable 'font-lock-defaults) '(ghc-prof-font-lock-keywords))
   (setq major-mode 'ghc-prof-mode)
   (setq mode-name "profiling report")
-  (toggle-read-only)                    ; make opened buffer read only
+  ;; make opened buffer read only
+  (toggle-read-only)                
+  ;; it's might be useful to collate time in mode-line with report time
+  (display-time)                    
   (ghc-prof-select-report)
-;;  (run-with-timer 0 2 '(ghc-prof-modification-handler))
+  (ghc-prof-watch-buffer)
   (run-hooks 'ghc-prof-mode-hook))
 
-;;; ======================== polling  ========================================
-;;;(defvar ghc-prof-managed-prof-buffers nil)
+;;; ======================== notifications ===================================
+;; Now notifications (file changed) works through polling.
+;; TODO: try to interface with DBus or inotify.
+;; (defvar ghc-prof-managed-timers nil)
 
-;; (defun ghc-prof-modification-handler ()
-;;   (let ((buffer (current-buffer)))
-;;     #'(ghc-prof-check-external-modifications buffer)))
+(defun ghc-prof-update-buffer ()
+  "Since report is read only update buffer without confirmation."
+  (interactive) 
+  (revert-buffer t t)
+  (setq header-line-format nil)
+  (message "Report have been updated."))
 
-;;(defun ghc-prof-check-external-modifications (buffer) 
-;;  (when (not (verify-visited-file-modtime buffer))
-;;    (global-set-key (kbd "<F5>") 'revert-buffer)
-;;    (setq header-line-format 
-;;          (concat 
-;;           (propertize "It seem like you get a new report, anyway this report file has been changed externally. " 
-;;                       'face '(:foreground "#f00"))
-;;           "Press F5 to show the new report."))))
+;;; since current buffer can vary, associated buffer handle holded on in closure
+(defun ghc-prof-watch-buffer ()
+  (run-at-time 0 2 'ghc-prof-check-external-modifications (current-buffer)))
+
+;;; TODO!
+(defun ghc-prof-kill-timer ()
+  )
+
+(defun ghc-prof-check-external-modifications (buffer)
+  (when (not (verify-visited-file-modtime buffer))
+    (with-current-buffer buffer 
+      (setq header-line-format 
+            (concat 
+             (propertize "It seems like you get a new report. " 
+                         'face '(:background "#f00"))
+             " Press r to show the new report.")))))
+
 ;; ========================= utils    ========================================
 (defun swap-snd-fst-rest (x)
   (cons (cadr x) (cons (car x) (cddr x))))
