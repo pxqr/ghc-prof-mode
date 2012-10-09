@@ -3,10 +3,16 @@
 
 (defvar ghc-prof-mode-map 
   (let ((map (make-keymap)))
+    (define-key map "s" 'ghc-prof-select-report)
     (define-key map "r" 'ghc-prof-update-buffer)
+    
     (define-key map "i" 'ghc-prof-initiate-profiling)
     (define-key map "t" 'ghc-prof-terminate-profiling)
-    (define-key map "s" 'ghc-prof-select-report)
+    (define-key map "[" 'ghc-prof-initiate-profiling)
+    (define-key map "]" 'ghc-prof-terminate-profiling)
+
+    (define-key map "h" 'ghc-prof-highlight)
+    (define-key map "c" 'ghc-prof-clear)
     map))
 
 ;;; set ghc-prof-mode when .prof file is opened
@@ -22,8 +28,8 @@
 (defconst ghc-prof-font-lock-keywords
   (list 
    '("COST.*"                      . font-lock-keyword-face)
-   '(" 0\\.0"                      . font-lock-constant-face)
-   '("[[:digit:]]+\\.[[:digit:]]+" . font-lock-variable-name-face)
+   '("\\<0\\.0\\>"                      . font-lock-constant-face)
+   '("\\<[[:digit:]]+\\(\\(\\.\\|,\\)[[:digit:]]+\\)*\\>" . font-lock-variable-name-face)
    '(ghc-prof-module-identif-regexp . font-lock-type-face)
    ))
 
@@ -161,8 +167,8 @@
    (make-alist                                        ; make lookup from module name to function->info
     (mapcar 'swap-snd-fst-rest                                
      (remove-if (lambda (x) (string-match "^CAF" (car x)))
-                (mapcar (lambda (x) 
-                          (cons (replace-regexp-in-string "^\\(.*?\\)\\(\\.\\\\\\)+\\'" "\\1" (car x))
+                (mapcar (lambda (x)                        ; drop 
+                          (cons (replace-regexp-in-string "^\\(.*?\\)\\..*\\'" "\\1" (car x))
                                 (cdr x)))
                 parsed-report))))))
 
@@ -191,7 +197,7 @@
 (defun ghc-prof-std (list) )
 
 ;;; ========================== interactive         ============================
-(defun ghc-prof-hotspot-current ()
+(defun ghc-prof-highlight-current ()
   (interactive)
   (let* ((content (buffer-substring-no-properties (point-min) (point-max)))
 	 (module-name (ghc-prof-extract-module-name content)))
@@ -204,10 +210,10 @@
 		      (ghc-prof-indicate-cost-centre file-name module-name (car cost-centre)))
 		    module-stats))))))))
 
-(defun ghc-prof-hotspots ()
+(defun ghc-prof-highlight ()
   (interactive)
   (ghc-prof-clear)
-  (mapc (lambda (x) (with-current-buffer x (ghc-prof-hotspot-current)))
+  (mapc (lambda (x) (with-current-buffer x (ghc-prof-highlight-current)))
 	(ghc-prof-buffer-list)))
 
 (defun ghc-prof-clear ()
@@ -226,7 +232,7 @@
             (ghc-prof-initiate-profiling))
           (message "Continue profiling."))
     (let* ((line (ghc-prof-report-extract-line)))
-           (if (not line)
+           (if t
                (let* ((progr (car line))
                       (args  (cdr line)) 
                       (proc  (apply (apply-partially 'start-process-shell-command 
