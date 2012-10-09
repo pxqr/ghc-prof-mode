@@ -197,29 +197,6 @@
 (defun ghc-prof-std (list) )
 
 ;;; ========================== interactive         ============================
-(defun ghc-prof-highlight-current ()
-  (interactive)
-  (let* ((content (buffer-substring-no-properties (point-min) (point-max)))
-	 (module-name (ghc-prof-extract-module-name content)))
-    (when module-name
-      (let ((module-stats (cdr (assoc module-name ghc-prof-current-stats))))
-	(when module-stats
-	  (let ((file-name (buffer-file-name (current-buffer))))
-	    (when file-name
-	      (mapc (lambda (cost-centre) 
-		      (ghc-prof-indicate-cost-centre file-name module-name (car cost-centre)))
-		    module-stats))))))))
-
-(defun ghc-prof-highlight ()
-  (interactive)
-  (ghc-prof-clear)
-  (mapc (lambda (x) (with-current-buffer x (ghc-prof-highlight-current)))
-	(ghc-prof-buffer-list)))
-
-(defun ghc-prof-clear ()
-  (interactive)
-  (ghc-prof-remove-indicators))
-
 (defvar ghc-prof-profiling-process-handle nil)
 
 (defun ghc-prof-initiate-profiling ()
@@ -253,34 +230,47 @@
           (message (format "Profiling process '%s' terminated with exit status %s." name status)))
         (setq ghc-prof-profiling-process-handle nil))
       (message "No running process yet.")))
-  
-;; ========================== ghc-mod interfacing ============================
-(defun ghc-prof-function-info (file-name module name)
-  (process-lines "ghc-mod" "info" file-name module name))
 
-(defun ghc-prof-position-from-info (info)
-  (string-to-number
-   (replace-regexp-in-string ".*:\\([[:digit:]]+\\):[[:digit:]]+\\'" "\\1" 
-			    (car (last info)))))
+(defun ghc-prof-highlight-current ()
+  (interactive)
+  (let* ((content (buffer-substring-no-properties (point-min) (point-max)))
+	 (module-name (ghc-prof-extract-module-name content)))
+    (when module-name
+      (let ((module-stats (cdr (assoc module-name ghc-prof-current-stats))))
+	(when module-stats
+	  (let ((file-name (buffer-file-name (current-buffer))))
+	    (when file-name
+	      (mapc (lambda (cost-centre) 
+		      (ghc-prof-indicate-cost-centre file-name module-name (car cost-centre)))
+		    module-stats))))))))
 
-(defun ghc-prof-indicate-cost-centre (file-name module-name cost-centre)
-  (let ((position (ghc-prof-position-from-info 
-		   (ghc-prof-function-info file-name module-name cost-centre))))
-    (when position
-      (ghc-prof-create-indicator position 'vertical-bar))))
+(defun ghc-prof-highlight ()
+  (interactive)
+  (ghc-prof-clear)
+  (mapc (lambda (x) (with-current-buffer x (ghc-prof-highlight-current)))
+	(ghc-prof-buffer-list)))
 
-;;; TODO: Check if ghc-mod is available but not in inner loop obviously.
-;;; (if (not (ghc-which ghc-module-command))
-;;;    (message "%s not found" ghc-module-command)
+(defun ghc-prof-clear ()
+  (interactive)
+  (ghc-prof-remove-indicators))
 
 ;; ==========================  Fringes =======================================
 ;;; TODO: Add color and side parameters to ghc-prof-create-indicator.
 (defvar ghc-prof-indicators nil)
-(define-fringe-bitmap 'ghc-prof-fringe-bitmap [255 0])
+(setq ghc-prof-fringe-bitmap 'vertical-bar)
 
-(defun ghc-prof-create-indicator (line-number bitmap)
-  (let* ((pos (ghc-prof-line-position line-number))
-         (overlay (ghc-prof-insert-bitmap bitmap 
+(defun ghc-prof-function-position (name)
+  (save-excursion
+    (goto-char (point-min))
+    (re-search-forward (concat "^" name) (point-max) t)))
+
+(defun ghc-prof-indicate-cost-centre (cost-centre)
+  (let ((position (ghc-prof-function-position cost-centre)))
+    (when position
+      (ghc-prof-create-indicator position 'ghc-prof-fringe-bitmap))))
+
+(defun ghc-prof-create-indicator (pos bitmap)
+  (let* ((overlay (ghc-prof-insert-bitmap bitmap 
 					  pos
                                           'left-fringe 
                                           'font-lock-warning-face)))
