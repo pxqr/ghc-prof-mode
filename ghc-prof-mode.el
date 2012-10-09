@@ -12,10 +12,20 @@
 ;;; set ghc-prof-mode when .prof file is opened
 (add-to-list 'auto-mode-alist '("\\.prof\\'" . ghc-prof-mode))
 
+(defun ghc-prof-pretty-lambda (&optional mode)
+  (font-lock-add-keywords 'ghc-prof-mode
+                          `(("\\\\"
+                             (0 (progn (compose-region (match-beginning 0) (match-end 0)
+                                                       ,(make-char 'greek-iso8859-7 107))
+                                       nil))))))
+
 (defconst ghc-prof-font-lock-keywords
-  (list
-   '("[[:digit:]]+\\.[[:digit:]]+" . font-lock-variable-name-face))
-  "Minimal highlighting for ghc-prof mode")
+  (list 
+   '("COST.*"                      . font-lock-keyword-face)
+   '(" 0\\.0"                      . font-lock-constant-face)
+   '("[[:digit:]]+\\.[[:digit:]]+" . font-lock-variable-name-face)
+   '(ghc-prof-module-identif-regexp . font-lock-type-face)
+   ))
 
 (defun ghc-prof-mode ()
   "Major mode for viewing ghc profiling reports."
@@ -25,6 +35,7 @@
   (kill-all-local-variables)
   ;; (set-syntax-table 
   (use-local-map ghc-prof-mode-map)
+  (ghc-prof-pretty-lambda)
   (set (make-local-variable 'font-lock-defaults) '(ghc-prof-font-lock-keywords))
   (setq major-mode 'ghc-prof-mode)
 
@@ -98,6 +109,7 @@
 	 '()
 	 list))
 
+
 ;;; ========================= buffers  ========================================
 ;;; unfortunately ghc-mod info does not support hsc (haskell interfaces to C)
 (defun ghc-prof-buffer-list ()
@@ -108,13 +120,15 @@
        (or (eq nil file-name) (not (string-match ".+\\.l?hs\\'" file-name)))))
    (buffer-list)))
 
+(defconst ghc-prof-module-identif-regexp
+  (let ((id-re  "[[:upper:]]\\(\\w\\|'\\)*"))
+    (concat "\\(" id-re "\\.\\)*" id-re)))
+
 ;;; FIX: if "module Module.Name" precedes real module statement 
 ;;; then module will be recognized incorrectly.
 (defun ghc-prof-extract-module-name (source)
   "Extract from haskell source its module name"
-  (let* ((id-re  "[[:upper:]]\\(\\w\\|'\\)*")
-	 (hid-re (concat "\\(" id-re "\\.\\)*" id-re))
-	 (mod-re (concat "module +\\(" hid-re "\\).*")))
+  (let ((mod-re (concat "module +\\(" ghc-prof-module-identif-regexp "\\).*")))
     (car (search-line-by-line 
 	  (lambda (line)
 	    (when (string-match mod-re line)
