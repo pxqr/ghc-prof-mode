@@ -4,6 +4,9 @@
 (defvar ghc-prof-mode-map 
   (let ((map (make-keymap)))
     (define-key map "r" 'ghc-prof-update-buffer)
+    (define-key map "i" 'ghc-prof-initiate-profiling)
+    (define-key map "t" 'ghc-prof-terminate-profiling)
+    (define-key map "s" 'ghc-prof-select-report)
     map))
 
 ;;; set ghc-prof-mode when .prof file is opened
@@ -17,17 +20,18 @@
 (defun ghc-prof-mode ()
   "Major mode for viewing ghc profiling reports."
   (interactive)
+
+  (toggle-read-only)                  ; make opened buffer read only
   (kill-all-local-variables)
   ;; (set-syntax-table 
   (use-local-map ghc-prof-mode-map)
   (set (make-local-variable 'font-lock-defaults) '(ghc-prof-font-lock-keywords))
   (setq major-mode 'ghc-prof-mode)
-  (setq mode-name "profiling report")
-  ;; make opened buffer read only
-  (toggle-read-only)                
-  ;; it's might be useful to collate time in mode-line with report time
-  (display-time)                    
-  (ghc-prof-select)
+
+  (setq mode-name "profiling-report")
+  (setq mode-line-format (list " %m: " "%b " "(%l) "))
+
+  (ghc-prof-select-report)
   (ghc-prof-watch-buffer)
   (run-hooks 'ghc-prof-mode-hook))
 
@@ -122,7 +126,7 @@
 ;; Holds current selected report parsed and formed yet.
 (defvar ghc-prof-current-stats nil)
 
-(defun ghc-prof-select ()
+(defun ghc-prof-select-report ()
   "Select report opened in current buffer.
    When ghc-prof attempt to find hotspots it will use the last selected report."
   (interactive)
@@ -153,8 +157,17 @@
   (mapcar '(lambda (x) (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" x) " +")) 
 	  (cdr (cdr (cdr  ;; skip attribute line, blank line and first meaningless line with MAIN
                      (drop-while 
-                      '(lambda (x) (not (string-match "^COST +CENTRE +MODULE +no" x)))
+                      '(lambda (x) (when x (not (string-match "^COST +CENTRE +MODULE +no" x))))
                       (split-string report "\n")))))))
+
+(defun ghc-prof-report-extract-line ()
+  "Extract last command line passed before report have been generated."
+  (split-string 
+   (replace-regexp-in-string "[[:space:]]*\\(.*\\)" "\\1"
+                             (buffer-substring-no-properties
+                              (ghc-prof-line-position 3) 
+                              (- (ghc-prof-line-position 4) 1)))
+   " +"))
 
 ;;; ========================== some  math          ============================
 ;;; TODO: we can make it in one pass.
@@ -187,6 +200,40 @@
   (interactive)
   (ghc-prof-remove-indicators))
 
+(defvar ghc-prof-profiling-process-handle nil)
+
+(defun ghc-prof-initiate-profiling ()
+  "Starts profiling process. It takes parameters from report and put it in shell."
+  (interactive)
+  (if ghc-prof-profiling-process-handle
+      (if (y-or-n-p "Profiling process still running. Kill it and start again? ")
+          (progn
+            (ghc-prof-terminate-profiling)
+            (ghc-prof-initiate-profiling))
+          (message "Continue profiling."))
+    (let* ((line (ghc-prof-report-extract-line)))
+           (if (not line)
+               (let* ((progr (car line))
+                      (args  (cdr line)) 
+                      (proc  (apply (apply-partially 'start-process-shell-command 
+                                                     "prof-proc" 
+                                                     (concat progr "-output") 
+                                                     (concat "./" progr))
+                                   args)))
+                 (setq ghc-prof-profiling-process-handle proc))
+               (message "It seems that report is broken.")))))
+
+(defun ghc-prof-terminate-profiling ()
+  "Terminate spawned by initiate-profiling process."
+  (interactive)
+  (if ghc-prof-profiling-process-handle
+      (let ((name (process-name ghc-prof-profiling-process-handle)))
+        (interrupt-process ghc-prof-profiling-process-handle)
+        (let (status (process-exit-status ghc-prof-profiling-process-handle))
+          (message (format "Profiling process '%s' terminated with exit status %s." name status)))
+        (setq ghc-prof-profiling-process-handle nil))
+      (message "No running process yet.")))
+  
 ;; ========================== ghc-mod interfacing ============================
 (defun ghc-prof-function-info (file-name module name)
   (process-lines "ghc-mod" "info" file-name module name))
