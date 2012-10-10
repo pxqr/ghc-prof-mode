@@ -50,6 +50,8 @@
 
   (ghc-prof-select-report)
   (ghc-prof-watch-buffer)
+  (ghc-prof-highlight)
+
   (run-hooks 'ghc-prof-mode-hook))
 
 ;;; ======================== notifications ===================================
@@ -172,9 +174,12 @@
                                 (cdr x)))
                 parsed-report))))))
 
+(defun ghc-prof-report-extract-record (line)
+  (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" line) " +"))
+
 (defun ghc-prof-report-extract-stats (report)
   "Extract detailed stats from report. Return a table as it have been presented in report."
-  (mapcar '(lambda (x) (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" x) " +")) 
+  (mapcar 'ghc-prof-report-extract-record
 	  (cdr (cdr (cdr  ;; skip attribute line, blank line and first meaningless line with MAIN
                      (drop-while 
                       '(lambda (x) (when x (not (string-match "^COST +CENTRE +MODULE +no" x))))
@@ -189,7 +194,26 @@
                               (- (ghc-prof-line-position 4) 1)))
    " +"))
 
+;;; ========================== navigation          ============================
+(defun ghc-prof-report-extract- ()
+  (current-line)
+
+(defun ghc-prof-current-line-content ()
+  (save-excursion 
+    (beginning-of-line)
+    (let ((beg (point)))
+      (end-of-line)
+      (let ((end (point)))
+        (buffer-substring-no-properties beg end)
+      )))))
 ;;; ========================== some  math          ============================
+(defun ghc-prof-lepr (k a b)
+  "Linear interpolation. It takes two ints and blending floating coeff."
+  (round (+ (* (float a) (- 1.0 k)) (* (float b) k))))
+
+(defun ghc-prof-lepr-list (k a b)
+  (mapcar* (apply-partially 'ghc-prof-lepr k) a b))
+
 ;;; TODO: we can make it in one pass.
 (defun ghc-prof-mean (list)
   (/ (apply '+ list) (list-length list)))
@@ -238,11 +262,9 @@
     (when module-name
       (let ((module-stats (cdr (assoc module-name ghc-prof-current-stats))))
 	(when module-stats
-	  (let ((file-name (buffer-file-name (current-buffer))))
-	    (when file-name
-	      (mapc (lambda (cost-centre) 
-		      (ghc-prof-indicate-cost-centre file-name module-name (car cost-centre)))
-		    module-stats))))))))
+          (mapc (lambda (cc) 
+                  (when cc (ghc-prof-indicate-cost-centre cc)))
+                module-stats))))))
 
 (defun ghc-prof-highlight ()
   (interactive)
@@ -255,9 +277,30 @@
   (ghc-prof-remove-indicators))
 
 ;; ==========================  Fringes =======================================
-;;; TODO: Add color and side parameters to ghc-prof-create-indicator.
 (defvar ghc-prof-indicators nil)
-(setq ghc-prof-fringe-bitmap 'vertical-bar)
+
+(defface ghc-prof-face-low     
+  `((((class color)) (:foreground "Green"))) 
+  "middle  face")
+(defface ghc-prof-face-mid 
+  `((((class color)) (:foreground "yellow"))) 
+  "middle  face")
+(defface ghc-prof-face-high
+  `((((class color)) (:foreground "red"))) 
+  "middle  face")
+
+(setq ghc-prof-low-boundary 20.0)
+(setq ghc-prof-high-boundary 50.0)
+
+(defun ghc-prof-show-color (color)
+ (concat "#" (mapconcat (apply-partially 'format "%02X") color "")))
+
+(defun ghc-prof-get-face (k) 
+  (if (< k ghc-prof-low-boundary)
+      'ghc-prof-face-low
+    (if (< k ghc-prof-high-boundary)
+	'ghc-prof-face-mid
+        'ghc-prof-face-high)))
 
 (defun ghc-prof-function-position (name)
   (save-excursion
@@ -265,20 +308,23 @@
     (re-search-forward (concat "^" name) (point-max) t)))
 
 (defun ghc-prof-indicate-cost-centre (cost-centre)
-  (let ((position (ghc-prof-function-position cost-centre)))
-    (when position
-      (ghc-prof-create-indicator position 'ghc-prof-fringe-bitmap))))
+    (let* ((name (car cost-centre))
+           (info (cdr cost-centre))
+           (position (ghc-prof-function-position name))
+           (time (caddr info))
+           (alloc (cadddr info)))
+      (when position
+        (ghc-prof-create-indicator position 'left-fringe (ghc-prof-get-face time))
+        (ghc-prof-create-indicator position 'right-fringe (ghc-prof-get-face alloc)))))
 
-(defun ghc-prof-create-indicator (pos bitmap)
-  (let* ((overlay (ghc-prof-insert-bitmap bitmap 
-					  pos
-                                          'left-fringe 
-                                          'font-lock-warning-face)))
+;  (ghc-prof-create-indicator (point) 'left-fringe (ghc-prof-get-face 20))
+;; TODO: ghc-prof-fringe-bitmap misbehaving
+(defun ghc-prof-create-indicator (pos side face)
+  (let* ((overlay (ghc-prof-insert-bitmap 'filled-square pos side face)))
     (push (cons pos overlay) ghc-prof-indicators)))
 
-(defun ghc-prof-insert-bitmap (bitmap pos &optional side face)
-  (let* ((display-string `(,(or side 'left-fringe) ,bitmap .
-                           ,(when face (cons face nil))))
+(defun ghc-prof-insert-bitmap (bitmap pos side face)
+  (let* ((display-string `(,side ,bitmap . ,(cons face nil)))
 	 (before-string (propertize "!" 'display display-string))
 	 (ov (make-overlay pos pos)))
     (overlay-put ov 'before-string before-string)
