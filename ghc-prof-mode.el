@@ -13,6 +13,8 @@
 
     (define-key map "h" 'ghc-prof-highlight)
     (define-key map "c" 'ghc-prof-clear)
+
+    (define-key map "g" 'ghc-prof-goto-function)
     map))
 
 ;;; set ghc-prof-mode when .prof file is opened
@@ -142,7 +144,17 @@
 	    (when (string-match mod-re line)
 	      (replace-regexp-in-string mod-re "\\1" line)))
 	  source))))
-               
+
+(defun ghc-prof-find-buffer-by-module-name (module-name)
+  (remove-if-not (lambda (buf) 
+                   (let ((buf-mod-name
+                          (with-current-buffer buf 
+                            (ghc-prof-extract-module-name 
+                             (buffer-substring-no-properties (point-min) (point-max))))))
+                     (when buf-mod-name
+                       (equal module-name buf-mod-name))))
+                 (ghc-prof-buffer-list)))
+
 ;;; ======================== report ==============================================
 ;; stats :: Map ModuleName (Map CentreName Info)
 ;; Holds current selected report parsed and formed yet.
@@ -169,13 +181,12 @@
    (make-alist                                        ; make lookup from module name to function->info
     (mapcar 'swap-snd-fst-rest                                
      (remove-if (lambda (x) (string-match "^CAF" (car x)))
-                (mapcar (lambda (x)                        ; drop 
-                          (cons (replace-regexp-in-string "^\\(.*?\\)\\..*\\'" "\\1" (car x))
-                                (cdr x)))
-                parsed-report))))))
+                parsed-report)))))
 
 (defun ghc-prof-report-extract-record (line)
-  (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" line) " +"))
+  (let ((xs (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" line) " +")))
+    (cons (replace-regexp-in-string "^\\(.*?\\)\\..*\\'" "\\1" (car xs))
+          (cdr xs))))
 
 (defun ghc-prof-report-extract-stats (report)
   "Extract detailed stats from report. Return a table as it have been presented in report."
@@ -195,8 +206,22 @@
    " +"))
 
 ;;; ========================== navigation          ============================
-(defun ghc-prof-report-extract- ()
-  (current-line)
+(defun ghc-prof-goto-function ()
+  "When in report buffer goto position of function in current line."
+  (interactive)
+  (let* ((rec (ghc-prof-report-extract-record (ghc-prof-current-line-content)))
+         (function-name (car rec))
+         (module-name  (cadr rec))
+         (buffers (ghc-prof-find-buffer-by-module-name module-name))
+         ;; pick the first buffer with the module name 
+         (buffer-def (car buffers)))
+    (when buffer-def
+      (with-current-buffer buffer-def
+        (let ((position (ghc-prof-function-position function-name)))
+          (when position 
+            (switch-to-buffer-other-window buffer-def)
+            (goto-char position)
+            (beginning-of-line)))))))
 
 (defun ghc-prof-current-line-content ()
   (save-excursion 
@@ -204,8 +229,8 @@
     (let ((beg (point)))
       (end-of-line)
       (let ((end (point)))
-        (buffer-substring-no-properties beg end)
-      )))))
+        (buffer-substring-no-properties beg end)))))
+
 ;;; ========================== some  math          ============================
 (defun ghc-prof-lepr (k a b)
   "Linear interpolation. It takes two ints and blending floating coeff."
