@@ -336,16 +336,24 @@
     (let* ((name (car cost-centre))
            (info (cdr cost-centre))
            (position (ghc-prof-function-position name))
-           (time (caddr info))
-           (alloc (cadddr info)))
+           (indiv-time  (nth 2 info))
+           (indiv-alloc (nth 3 info))
+           (inher-time  (nth 4 info))
+           (inher-alloc (nth 5 info)))
       (when position
-        (ghc-prof-create-indicator position 'left-fringe (ghc-prof-get-face time))
-        (ghc-prof-create-indicator position 'right-fringe (ghc-prof-get-face alloc)))))
+        (let ((pos-next (save-excursion 
+                          (goto-char position)
+                          (forward-line)  
+                          (point))))
+          (ghc-prof-create-indicator 'filled-square position 'left-fringe  (ghc-prof-get-face inher-time))
+          (ghc-prof-create-indicator 'filled-square position 'right-fringe (ghc-prof-get-face inher-alloc))
+          (ghc-prof-create-indicator 'hollow-square pos-next 'left-fringe  (ghc-prof-get-face indiv-time))
+          (ghc-prof-create-indicator 'hollow-square pos-next 'right-fringe (ghc-prof-get-face indiv-alloc))
+          ))))
 
-;  (ghc-prof-create-indicator (point) 'left-fringe (ghc-prof-get-face 20))
 ;; TODO: ghc-prof-fringe-bitmap misbehaving
-(defun ghc-prof-create-indicator (pos side face)
-  (let* ((overlay (ghc-prof-insert-bitmap 'filled-square pos side face)))
+(defun ghc-prof-create-indicator (bitmap pos side face)
+  (let* ((overlay (ghc-prof-insert-bitmap bitmap  pos side face)))
     (push (cons pos overlay) ghc-prof-indicators)))
 
 (defun ghc-prof-insert-bitmap (bitmap pos side face)
