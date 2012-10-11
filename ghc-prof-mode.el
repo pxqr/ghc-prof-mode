@@ -121,13 +121,12 @@
 
 
 ;;; ========================= buffers  ========================================
-;;; unfortunately ghc-mod info does not support hsc (haskell interfaces to C)
 (defun ghc-prof-buffer-list ()
   "List of all haskellish buffers."
   (remove-if 
    (lambda (buffer)
      (let ((file-name (buffer-file-name buffer)))
-       (or (eq nil file-name) (not (string-match ".+\\.l?hs\\'" file-name)))))
+       (or (eq nil file-name) (not (string-match ".+\\.l?hsc?\\'" file-name)))))
    (buffer-list)))
 
 (defconst ghc-prof-module-identif-regexp
