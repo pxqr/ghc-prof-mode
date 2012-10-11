@@ -167,8 +167,8 @@
 				 (ghc-prof-report-extract-stats 
 				  (buffer-substring-no-properties (point-min) (point-max))))))
 
-;; TODO: verify 
 (defun ghc-prof-merge-info (alist)
+  "Merge info about the same function into one record. Rows are just summed."
   (cons (car alist)
         (apply 'mapcar* 
                (lambda (&rest x) (apply '+ (mapcar 'string-to-number x))) 
@@ -183,6 +183,7 @@
                 parsed-report)))))
 
 (defun ghc-prof-report-extract-record (line)
+  "Extract a profiling record from stats. It can be from either detailed stats or synopsis."
   (let ((xs (split-string (replace-regexp-in-string " *\\(.*\\)" "\\1" line) " +")))
     (cons (replace-regexp-in-string "^\\(.*?\\)\\..*\\'" "\\1" (car xs))
           (cdr xs))))
@@ -223,6 +224,7 @@
             (beginning-of-line)))))))
 
 (defun ghc-prof-current-line-content ()
+  "Get content of current line in current buffer, but not affect on position. "
   (save-excursion 
     (beginning-of-line)
     (let ((beg (point)))
@@ -280,6 +282,7 @@
       (message "No running process yet.")))
 
 (defun ghc-prof-highlight-current ()
+  "Attach indicator to all that possible in current focused buffer."
   (interactive)
   (let* ((content (buffer-substring-no-properties (point-min) (point-max)))
 	 (module-name (ghc-prof-extract-module-name content)))
@@ -291,12 +294,14 @@
                 module-stats))))))
 
 (defun ghc-prof-highlight ()
+  "Attach indicators to all that possible in all haskell buffers."
   (interactive)
   (ghc-prof-clear)
   (mapc (lambda (x) (with-current-buffer x (ghc-prof-highlight-current)))
 	(ghc-prof-buffer-list)))
 
 (defun ghc-prof-clear ()
+  "Remove from fringes all indicators in all frames."
   (interactive)
   (ghc-prof-remove-indicators))
 
