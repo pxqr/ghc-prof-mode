@@ -15,15 +15,19 @@
     (define-key map "s" 'ghc-prof-select-report)
     (define-key map "r" 'ghc-prof-update-buffer)
     
+    ;; quick profiling
     (define-key map "i" 'ghc-prof-initiate-profiling)
     (define-key map "t" 'ghc-prof-terminate-profiling)
     (define-key map "[" 'ghc-prof-initiate-profiling)
     (define-key map "]" 'ghc-prof-terminate-profiling)
 
+    ;; indicators
     (define-key map "h" 'ghc-prof-highlight)
     (define-key map "c" 'ghc-prof-clear)
 
+    ;; navigation
     (define-key map "g" 'ghc-prof-goto-function)
+    (define-key map (kbd "<return>") 'ghc-prof-goto-function)
     map))
 
 ;;; set ghc-prof-mode when .prof file is opened
