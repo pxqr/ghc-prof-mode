@@ -4,13 +4,7 @@
   (let* ((rec (ghc-prof-report-extract-record (ghc-prof-current-line-content)))
          (function-name (car rec))
          (module-name  (cadr rec))
-         (buffers (remove-if 'nil 
-                             (mapcar (lambda (buf) 
-                                       (with-current-buffer buf
-                                         (let ((position (ghc-prof-function-position function-name)))
-                                           (when position
-                                             (cons buf (cons position nil))))))
-                                     (ghc-prof-find-buffer-by-module-name module-name))))
+         (buffers (ghc-prof-search-function module-name function-name))
          ;; pick the first buffer with the module name and the scc name
          (buffer-pos (car buffers)))
     (if buffer-pos
@@ -19,6 +13,15 @@
           (goto-char (cadr buffer-pos))
           (beginning-of-line))
         (message "Can't find such function."))))
+
+(defun ghc-prof-search-function (module-name function-name)
+  (remove-if 'nil 
+             (mapcar (lambda (buf) 
+                       (with-current-buffer buf
+                         (let ((position (ghc-prof-function-position function-name)))
+                           (when position
+                             (cons buf (cons position nil))))))
+                     (ghc-prof-find-buffer-by-module-name module-name))))
 
 (defun ghc-prof-current-line-content ()
   "Get content of current line in current buffer, but not affect on position. "
