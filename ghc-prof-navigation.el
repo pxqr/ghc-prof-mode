@@ -5,18 +5,28 @@
          (function-name (car rec))
          (module-name  (cadr rec))
          (buffers (ghc-prof-search-function module-name function-name))
-         ;; pick the first buffer with the module name and the scc name
-         (buffer-pos (car buffers)))
-    (if buffer-pos
-        (progn 
-          (switch-to-buffer-other-window (car buffer-pos))
-          (goto-char (cadr buffer-pos))
-          (beginning-of-line))
-        (message "Can't find such function."))))
+         (bufs-len (length buffers)))
+    (cond ((= bufs-len 0) (message "Can't find such function."))
+          ((= bufs-len 1) (ghc-prof-focus-function (car-safe buffers)))
+          (t (let* ((prompt-hint (mapcar (lambda (buf-pos) 
+                                           (format " %s "
+                                                   (buffer-file-name (car buf-pos)))) buffers))
+                    (answer (read-from-minibuffer 
+                             (apply 'concat (cons "Ambiguous! Choose number of one you want: " prompt-hint))
+                              "1" nil 'string-to-number)))
+               (when (and (/= answer 0) (<= answer bufs-len))
+                 (ghc-prof-focus-function (nth (- answer 1) buffers))))))))
+
+(defun ghc-prof-focus-function (buffer-pos)
+  (switch-to-buffer-other-window (car buffer-pos))
+  (goto-char (cadr buffer-pos))
+  (beginning-of-line))
+
+;;; TODO: Can't find `function-name` in `module-name`, but it in `module-name` or `buffer-name`. Jump to it?
 
 (defun ghc-prof-search-function (module-name function-name)
   (remove-if 'nil 
-             (mapcar (lambda (buf) 
+             (mapcar (lambda (buf)
                        (with-current-buffer buf
                          (let ((position (ghc-prof-function-position function-name)))
                            (when position
