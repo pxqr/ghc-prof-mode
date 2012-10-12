@@ -1,4 +1,3 @@
-;; TODO: when process terminates set ghc-prof-profiling-process-handle to nil
 (defvar ghc-prof-profiling-process-handle nil)
 (defvar ghc-prof-process-terminated-hook  nil)
 (defvar ghc-prof-process-spawned-hook     nil)
