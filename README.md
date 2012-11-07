@@ -9,11 +9,19 @@ STUB
 # Installing
 
 Fetch package:
-  cd ~/.emacs-libs/
-  git clone https://github.com/fmap/ghc-prof-mode.git
+
+``` bash
+$ cd ~/.emacs-libs/
+$ git clone https://github.com/fmap/ghc-prof-mode.git
+```
+
 Then add this to your .emacs file:
-  (add-to-list 'load-path "~/.emacs-libs/ghc-prof-mode")
-  (require 'ghc-prof-mode)
+
+``` cl
+(add-to-list 'load-path "~/.emacs-libs/ghc-prof-mode")
+(require 'ghc-prof-mode)
+```
+
 That's all.
 
 # Key bindings 
